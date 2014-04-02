@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html>
+<head><title>touchy circles</title>
+    <script>
+	
+    var ctx = null;
+    var canvas = null;
+    var bufferCtx = null;
+    var bufferCanvas = null;
+    var particleArray = [];
+	var particleNumber = 0;
+	var radius = 60;
+	var maxSpeed = 10;
+	var ongoingTouches = [];
+	var wallElasticity = 2;
+	var collisionElasticity = 1;
+	var gravity_y = 0;
+	var gravity_x = 0;
+	var maxNumber = 15;
+	var mousePos;
+	var mouseDrag = false;
+	var onCircle = false;
+	var colours = ['yellow', 'pink', 'aqua', 'blue', 'green', 'red', 'lightblue', 'lightgreen', 'purple', 'violet', 'orange', 'beige','black', 'white', 'darkgrey'];
+	
+window.addEventListener("deviceorientation", handleOrientation, true);
+	
+function handleOrientation(event) {
+	var absolute = event.absolute;
+	var alpha = event.alpha;
+	var beta = event.beta;
+	var gamma = event.gamma;
+	/*document.write('alpha '+alpha+'<br/>');
+	document.write('beta '+beta+'<br/>');
+	document.write('gamma '+gamma);*/
+	var radians = Math.PI/180;
+	gravity_y = Math.sin(radians*beta)/5;
+	gravity_x = Math.sin(radians*gamma)/5;
+}
+	
+	
+	
+	
+    function init(){
+    canvas = document.getElementById("canvas");
+    ctx = canvas.getContext("2d");
+
+    bufferCanvas = document.createElement("canvas");
+    bufferCtx = bufferCanvas.getContext("2d");
+    bufferCtx.canvas.width = ctx.canvas.width;
+    bufferCtx.canvas.height = ctx.canvas.height;
+
+	
+	/** Touch Events **/
+	canvas.addEventListener('touchstart', handleStart, false);
+	canvas.addEventListener('touchend', handleEnd, false);
+	canvas.addEventListener('touchcancel', handleCancel, false);
+	canvas.addEventListener('touchleave', handleEnd, false);
+	canvas.addEventListener('touchmove', handleMove, false);
+	
+	/** Mouse Events **/
+	canvas.addEventListener('mousedown', mouseDown, false);
+	canvas.addEventListener('mouseup', mouseUp, false);
+	canvas.addEventListener('mousemove', locate, false);
+	
+   //particles();
+	
+    animation = setInterval(animate,15);
+    }
+
+    function animate() {
+        draw();
+		update(); 
+       }
+	   
+	function distance(x,y){
+		return Math.sqrt(x*x + y*y);
+	}
+	
+	function angleFinder(x1,y1,x2,y2){  
+		var product = x1*x2 + y1*y2;
+		var mag = distance(x1,y1)*distance(x2,y2);
+		return Math.acos(product/mag);
+	}
+	
+	function update(){
+		
+		for(var i = 0; i < particleNumber; i++){
+		
+			/*if(distance(particleArray[i].ySpeed, particleArray[i].ySpeed) > 10){
+		
+				originalSpeed = distance(particleArray[i].ySpeed, particleArray[i].ySpeed);
+				ratio = originalSpeed/maxSpeed;
+			
+				particleArray[i].ySpeed /= ratio;
+				particleArray[i].xSpeed /= ratio;
+		
+			}*/
+		
+		
+		//Particle movement
+		
+		//particleArray[i].yAcceleration = particleArray[i].gravity;
+		particleArray[i].yAcceleration = gravity_y;
+		particleArray[i].xAcceleration = gravity_x;
+		
+		if(gravity_y == 0 && gravity_x == 0 && !particleArray[i].mouseDrag){ //for desktop
+			particleArray[i].yAcceleration = 0.2;
+			particleArray[i].xAcceleration = 0;
+		}
+		
+		particleArray[i].xSpeed += particleArray[i].xAcceleration;
+		particleArray[i].ySpeed += particleArray[i].yAcceleration;
+
+		particleArray[i].x += particleArray[i].xSpeed;
+		particleArray[i].y += particleArray[i].ySpeed;
+
+		
+		
+		if (particleArray[i].x > canvas.width - radius){
+		particleArray[i].x = canvas.width - radius - 1;
+        particleArray[i].xSpeed =-particleArray[i].xSpeed/wallElasticity;
+        }
+        if (particleArray[i].x < radius){
+		particleArray[i].x = radius + 1;
+        particleArray[i].xSpeed =-particleArray[i].xSpeed/wallElasticity;
+        }
+        if (particleArray[i].y > canvas.height - radius){
+		particleArray[i].y = canvas.height - radius - 1;
+        particleArray[i].ySpeed =-particleArray[i].ySpeed/wallElasticity;
+        }
+        if (particleArray[i].y < radius){
+		particleArray[i].y = radius + 1;
+        particleArray[i].ySpeed =-particleArray[i].ySpeed/wallElasticity;
+        }
+		
+		for(var j = 0; j < particleNumber; j++){
+		
+			if( j > i){
+			
+				var distances = distance(particleArray[i].x - particleArray[j].x, particleArray[i].y - particleArray[j].y); //the distance between the particle and the pollen grain
+		
+				var sumVelocity = distance((particleArray[i].xSpeed - particleArray[j].xSpeed) + particleArray[i].x - particleArray[j].x, (particleArray[i].ySpeed - particleArray[j].ySpeed) + particleArray[i].y - particleArray[j].y); /*sum of the magnitude of the particle's velocity
+		                                                                                                                                                                                             vector and the outward radial vector*/
+				var diffVelocity = distances - sumVelocity;
+		
+				var angle = angleFinder(particleArray[i].x - particleArray[j].x, particleArray[i].y - particleArray[j].y, particleArray[j].xSpeed - particleArray[i].xSpeed, particleArray[j].ySpeed -particleArray[i].ySpeed); //calculates the angle between relative particle motion and the point if impact on the grain 
+		
+				var scalarPro = distance(particleArray[i].xSpeed - particleArray[j].xSpeed, particleArray[i].ySpeed - particleArray[j].ySpeed)*Math.cos(angle); //calculates the scalar projection of the particles velocity along the direcion of impact
+		
+				if(distances - distance(particleArray[i].xSpeed, particleArray[i].ySpeed) < particleArray[j].radius + radius && diffVelocity > 0){
+				
+					//particleArray[i].gravity = 0;
+					//particleArray[j].gravity = -1;
+					
+					var scalarSpeedx = scalarPro*(particleArray[j].x - particleArray[i].x)/(particleArray[j].radius + radius);
+					var scalarSpeedy = scalarPro*(particleArray[j].y - particleArray[i].y)/(particleArray[j].radius + radius);
+		
+					var deltaSpeedx = ((scalarSpeedx) * (particleArray[i].mass - particleArray[j].mass))/(particleArray[i].mass + particleArray[j].mass) - scalarSpeedx;
+					var deltaSpeedy = ((scalarSpeedy) * (particleArray[i].mass - particleArray[j].mass))/(particleArray[i].mass + particleArray[j].mass) - scalarSpeedy;
+		
+					particleArray[i].xSpeed += deltaSpeedx/collisionElasticity;
+					particleArray[i].ySpeed += deltaSpeedy/collisionElasticity;
+
+					particleArray[j].xSpeed += -deltaSpeedx/collisionElasticity;
+					particleArray[j].ySpeed += -deltaSpeedy/collisionElasticity;
+					
+					
+					
+					var overlap = 2*radius - distances;
+					var overlapX = (particleArray[i].x - particleArray[j].x)*(overlap/radius);
+					var overlapY = (particleArray[i].y - particleArray[j].y)*(overlap/radius);
+					
+					if(overlap > 1){             //to prevent particles from passing through each other
+						particleArray[i].xSpeed += overlapX/10;
+						particleArray[i].ySpeed += overlapY/10;
+					}
+					
+					/*
+					particleArray[i].x += particleArray[i].xSpeed; //to prevent particles from passing through each other
+					particleArray[i].y += particleArray[i].ySpeed;
+					
+					particleArray[j].x += particleArray[j].xSpeed; //to prevent particles from passing through each other
+					particleArray[j].y += particleArray[j].ySpeed;*/
+					
+					}/*else{
+						particleArray[i].gravity = gravity;
+						}*/
+				}
+			}
+		}
+	}
+
+    /*function particleGen(){
+	    this.mass = 1;
+        this.radius = radius;
+        this.x = (bufferCtx.canvas.width - 2*this.radius)*Math.random() + this.radius;
+        this.y = (bufferCtx.canvas.height - 2*this.radius)*Math.random() + this.radius;
+        this.xSpeed = 5*(Math.random() - Math.random());
+        this.ySpeed = 5*(Math.random() - Math.random());
+		this.xAcceleration = 0;
+		this.yAcceleration = 0;
+		this.gravity = gravity_y;
+        this.colour = 'blue';
+    }*/
+
+    function backGround() {
+        bufferCtx.fillStyle = "#888888";
+        bufferCtx.fillRect(0,0,bufferCtx.canvas.width, bufferCtx.canvas.height);
+    }
+
+    /*function particles(){
+        for(var i = 0; i < particleNumber; i++){
+        particleArray[i] = new particleGen;
+    }
+}*/
+	
+    function draw(){
+        backGround();
+        bufferCtx.strokeStyle = 'black';
+        bufferCtx.lineWidth = 1;
+		for(var i = 0; i < particleNumber; i++){
+        bufferCtx.fillStyle = particleArray[i].colour;
+        bufferCtx.beginPath();
+        bufferCtx.arc(particleArray[i].x,particleArray[i].y,particleArray[i].radius,0,2*Math.PI);
+        bufferCtx.fill();
+        bufferCtx.stroke();
+		};
+		ctx.drawImage(bufferCanvas,0,0,canvas.width,canvas.height);
+}
+
+function handleStart(evt){
+	evt.preventDefault();
+	var canvas = document.getElementById('canvas');
+	var bufferCtx = canvas.getContext('2d');
+	var touches = evt.changedTouches;
+	var rect = canvas.getBoundingClientRect();
+	var scrollX = document.body.scrollLeft;
+	var scrollY = document.body.scrollTop;
+	var offsetX = rect.left + scrollX;
+	var offsetY = rect.top + scrollY;
+	
+	for(var i=0; i < touches.length; i++){
+		ongoingTouches.push(copyTouch(touches[i]));
+		for(var j=0; j < particleNumber; j++){
+			if(distance(touches[i].pageX - offsetX - particleArray[j].x, touches[i].pageY - offsetY - particleArray[j].y) < 1.5*radius){
+				touches[i].onCircle = true;
+				break;
+				}
+			}
+		if(!touches[i].onCircle && particleNumber < maxNumber){
+			//newColour = pickColour();
+			newColour = colours[particleNumber];
+			particleArray[particleNumber] = {mass:1, radius:radius, x:touches[i].pageX - offsetX, y:touches[i].pageY - offsetY, xSpeed:0, ySpeed:0, xAcceleration:0, yAcceleration:0, gravity:gravity_y, colour:newColour}
+			particleNumber++;
+		}
+	}
+}
+
+
+function handleMove(evt) {
+	evt.preventDefault();
+	var canvas = document.getElementsByTagName("canvas")[0];
+	var ctx = canvas.getContext("2d");
+	var touches = evt.changedTouches;
+	var rect = canvas.getBoundingClientRect();
+	var scrollX = document.body.scrollLeft;
+	var scrollY = document.body.scrollTop;
+	var offsetX = rect.left + scrollX;
+	var offsetY = rect.top + scrollY;
+	
+	for(var i=0; i < touches.length; i++) {
+	//var colour = colourForTouch(touches[i]);
+	var index = ongoingTouchIndexById(touches[i].identifier);
+
+	if(index >= 0) {
+		/*ctx.beginPath();
+		ctx.moveTo(ongoingTouches[index].pageX - offsetX, ongoingTouches[index].pageY - offsetY);
+		ctx.lineTo(touches[i].pageX - offsetX, touches[i].pageY - offsetY);
+		ctx.lineWidth = 4;
+		ctx.strokeStyle = colour;
+		ctx.stroke();
+		*/
+		for(var j=0; j < particleNumber; j++){
+			if(distance(touches[i].pageX - offsetX - particleArray[j].x, touches[i].pageY - offsetY - particleArray[j].y) < radius && !touches[i].onCircle){
+				touches[i].onCircle = true;
+				particleArray[j].x = touches[i].pageX - offsetX;
+				particleArray[j].y = touches[i].pageY - offsetY;
+				
+				particleArray[j].xSpeed = (touches[i].pageX - ongoingTouches[index].pageX)/2;
+				particleArray[j].ySpeed = (touches[i].pageY - ongoingTouches[index].pageY)/2;
+				}
+			}
+			ongoingTouches.splice(index, 1, copyTouch(touches[i]));  // swap in the new touch record
+		}
+	}
+}
+
+function handleEnd(evt) {
+	evt.preventDefault();
+	var canvas = document.getElementsByTagName("canvas")[0];
+	var ctx = canvas.getContext("2d");
+	var touches = evt.changedTouches;
+	var rect = canvas.getBoundingClientRect();
+	var scrollX = document.body.scrollLeft;
+	var scrollY = document.body.scrollTop;
+	var offsetX = rect.left + scrollX;
+	var offsetY = rect.top + scrollY;
+	
+	for (var i=0; i < touches.length; i++){
+	//var colour = colourForTouch(touches[i]);
+	var index = ongoingTouchIndexById(touches[i].identifier);
+
+	if(index >= 0){
+		/*ctx.lineWidth = 4;
+		ctx.fillStyle = colour;
+		ctx.beginPath();
+		ctx.moveTo(ongoingTouches[index].pageX - rect.left, ongoingTouches[index].pageY - offsetY);
+		ctx.lineTo(touches[i].pageX - offsetX, touches[i].pageY - offsetY);
+		ctx.fillRect(touches[i].pageX - offsetX -4, touches[i].pageY - offsetY -4, 8, 8); */ // and a square at the end
+		ongoingTouches.splice(index, 1);  // remove it; we're done
+		}
+	}
+}
+
+function handleCancel(evt) {
+	evt.preventDefault();
+	var touches = evt.changedTouches;
+  
+	for (var i=0; i < touches.length; i++) {
+		ongoingTouches.splice(i, 1);  // remove it; we're done
+	}
+}
+
+function locate(evt){
+	mousePos = getMousePos(canvas, evt);
+		onCircle = false;
+		for(var j=0; j < particleNumber; j++){
+		if(distance(mousePos.x - particleArray[j].x, mousePos.y - particleArray[j].y) < radius && !onCircle){
+			onCircle = true;
+			if(mouseDrag){
+				particleArray[j].x = mousePos.x;
+				particleArray[j].y = mousePos.y;
+				particleArray[j].xSpeed = 0;
+				particleArray[j].ySpeed = 0;
+			}
+		}
+	}
+	
+}
+
+function mouseDown(){
+	//newColour = pickColour();
+	newColour = colours[particleNumber];
+	if(particleNumber < maxNumber && !onCircle){
+		particleArray[particleNumber] = {mass:1, radius:radius, x:mousePos.x, y:mousePos.y, xSpeed:0, ySpeed:2, xAcceleration:0.2, yAcceleration:0.2, gravity:gravity_y, colour:newColour, mouseDrag:false}
+		particleNumber++;
+	}
+	
+	for(var j=0; j < particleNumber; j++){
+		if(distance(mousePos.x - particleArray[j].x, mousePos.y - particleArray[j].y) < radius){
+			particleArray[j].mouseDrag = true;
+			mouseDrag = true;
+		}
+	}
+}
+
+function mouseUp(){
+	mouseDrag = false;
+	for(var j=0; j < particleNumber; j++){
+		particleArray[j].mouseDrag = false;
+	}
+	
+}
+	
+	
+function getMousePos(canvas, evt) {       //canvas.addEventListener uses this function to calculate mouse position
+	var rect = canvas.getBoundingClientRect();
+	return {
+		x: evt.clientX - rect.left,
+		y: evt.clientY - rect.top
+		};
+	}
+
+
+
+function copyTouch(touch){
+	return {identifier: touch.identifier, pageX: touch.pageX, pageY: touch.pageY, onCircle: false};
+}
+
+function ongoingTouchIndexById(idToFind){
+	for (var i=0; i < ongoingTouches.length; i++){
+		var id = ongoingTouches[i].identifier;
+		if (id == idToFind){
+			return i;
+		}
+	}
+	return -1;	// not found
+}
+
+function pickColour(){
+	var colours = ['blue', 'lightblue', 'green', 'lightgreen', 'red', 'pink', 'aqua', 'purple', 'violet', 'orange', 'beige', 'yellow', 'black', 'white', 'darkgrey'];
+	return colours[Math.ceil(15*Math.random())-1];
+}
+
+</script>
+</head>
+<body onload="init()">
+	<canvas id="canvas" width="800" height="800">
+</canvas>
+
+<br/><p id='tap'>Tap on the canvas to create up to 15 circles</p>
+
+<!--<p id='number'>Number: 0 </p>
+<br/>
+Maximum number of circles &nbsp &nbsp <input id='maxNumber' type='text' name='max' value='3'/><button id ='less' onclick='less()'> << </button><button id ='more1' onclick='more()'> >> </button>-->
+
+
+
+</body>

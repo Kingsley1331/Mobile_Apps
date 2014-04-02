@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>multi-touch</title>
+
+<style>
+
+canvas{
+	border:solid black 1px;
+	position:absolute;
+	left:0px;
+	top:0px;
+}
+
+div{
+	position:absolute;
+	left:800px;
+	top:0px;
+	width:300px;
+	font-size:2em;
+}
+
+</style>
+
+<script type='text/javascript' src='multi-touch.js'></script>
+
+</head>
+
+<body onload='initialize()'>
+<canvas id='canvas' width='600' height='600'>
+Your browser does not support the canvas element.
+</canvas>
+<div><p>Draw multiple lines on the canvas at the same time by moving your fingers across it</p></div>
+</body>
+
+</html>
